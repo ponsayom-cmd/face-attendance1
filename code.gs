@@ -1,146 +1,119 @@
-// ============================================================
-//  GOOGLE APPS SCRIPT — REST API Backend
-//  วิธีใช้: Deploy > New deployment > Web App
-//           Execute as: Me | Who has access: Anyone
-// ============================================================
+/**
+ * ระบบเช็คชื่อรายวิชาด้วยใบหน้า - เวอร์ชันตัด GPS ออก
+ */
 
 function doGet(e) {
   const action = e.parameter.action;
   let result;
-
-  if (action === 'getConfig') {
-    result = getConfig();
-  } else if (action === 'getKnownFaces') {
-    result = getKnownFaces();
-  } else {
-    result = { error: 'Unknown action: ' + action };
-  }
-
-  return ContentService
-    .createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
+  try {
+    if (action === 'getConfig') { result = getConfig(); }
+    else if (action === 'getKnownFaces') { result = getKnownFaces(); }
+    else if (action === 'getAttendanceReport') { result = getAttendanceReport(e.parameter.date, e.parameter.subject); }
+    else if (action === 'getSubjects') { result = getSubjects(); }
+    else { result = { error: 'Unknown action' }; }
+  } catch (err) { result = { error: err.message }; }
+  return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
-  let data;
-  try {
-    data = JSON.parse(e.postData.contents);
-  } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ error: 'Invalid JSON body' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
+  let data = JSON.parse(e.postData.contents);
   const action = data.action;
   let result;
+  try {
+    if (action === 'login') { result = checkLogin(data.username, data.password); }
+    else if (action === 'registerUser') { result = registerStudent(data.name, data.faceDescriptor); }
+    else if (action === 'logAttendance') { result = logAttendance(data.name, data.subject); }
+    else if (action === 'saveConfig') { result = saveConfig(data.subjects); }
+  } catch (err) { result = { success: false, error: err.message }; }
+  return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+}
 
-  if (action === 'registerUser') {
-    result = registerUser(data.name, data.faceDescriptor);
-  } else if (action === 'logAttendance') {
-    result = logAttendance(data.name, data.lat, data.lng);
-  } else if (action === 'saveConfig') {
-    result = saveConfig(data.lat, data.lng, data.radius);
-  } else {
-    result = { error: 'Unknown action: ' + action };
+function checkLogin(username, password) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Admins') || ss.insertSheet('Admins');
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['Username', 'Password']);
+    sheet.appendRow(['admin', '1234']); 
   }
-
-  return ContentService
-    .createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-// --- ส่วนจัดการใบหน้า (Users) ---
-function registerUser(name, faceDescriptor) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Users');
-  if (!sheet) sheet = ss.insertSheet('Users');
-
-  sheet.appendRow([name, JSON.stringify(faceDescriptor), new Date()]);
-  return { success: true, message: 'บันทึกข้อมูลหน้าเรียบร้อย' };
-}
-
-function getKnownFaces() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Users');
-  if (!sheet) return [];
-
   const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return [];
-
-  let users = [];
   for (let i = 1; i < data.length; i++) {
-    const name = data[i][0];
-    const jsonStr = data[i][1];
-    if (name && jsonStr) {
-      try {
-        users.push({ label: name, descriptor: JSON.parse(jsonStr) });
-      } catch (e) {}
-    }
+    if (data[i][0] === username && String(data[i][1]) === String(password)) return { success: true };
   }
-  return users;
+  return { success: false, message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
 }
 
-// --- ส่วนบันทึกเวลา (Attendance) ---
-function logAttendance(name, lat, lng) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Attendance');
-  if (!sheet) {
-    sheet = ss.insertSheet('Attendance');
-    sheet.appendRow(['Name', 'Time', 'Date', 'Latitude', 'Longitude', 'Google Map Link']);
-  }
-
-  const now = new Date();
-  const mapLink = (lat && lng) ? `https://www.google.com/maps?q=${lat},${lng}` : '';
-  const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'd/M/yyyy');
-  const timeStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'HH:mm:ss');
-
-  sheet.appendRow([
-    name,
-    timeStr,
-    "'" + dateStr,
-    lat || '-',
-    lng || '-',
-    mapLink
-  ]);
-  return { success: true, message: 'บันทึกเวลาสำเร็จ' };
-}
-
-// --- ส่วนจัดการ Config (GPS) ---
-function saveConfig(lat, lng, radius) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName('Config');
-
-  if (!sheet) {
-    sheet = ss.insertSheet('Config');
-    sheet.getRange('A1:B1').setValues([['Parameter', 'Value']]);
-    sheet.getRange('A2').setValue('Target Latitude');
-    sheet.getRange('A3').setValue('Target Longitude');
-    sheet.getRange('A4').setValue('Allowed Radius (KM)');
-    sheet.setColumnWidth(1, 150);
-  }
-
-  sheet.getRange('B2').setValue(lat);
-  sheet.getRange('B3').setValue(lng);
-  sheet.getRange('B4').setValue(radius);
-
-  return { success: true, message: 'บันทึกการตั้งค่าลง Google Sheets เรียบร้อย' };
+function getSubjects() {
+  const config = getConfig();
+  return config.subjects || [];
 }
 
 function getConfig() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('Config');
-
-  let config = { lat: 0, lng: 0, radius: 0.5 };
-
-  if (sheet) {
-    const latVal = sheet.getRange('B2').getValue();
-    const lngVal = sheet.getRange('B3').getValue();
-    const radiusVal = sheet.getRange('B4').getValue();
-
-    if (latVal !== '') config.lat = parseFloat(latVal);
-    if (lngVal !== '') config.lng = parseFloat(lngVal);
-    if (radiusVal !== '') config.radius = parseFloat(radiusVal);
+  let sheet = ss.getSheetByName('Config') || ss.insertSheet('Config');
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['Param', 'Value']);
+    sheet.appendRow(['Subjects', 'วิชาตัวอย่าง']);
   }
-
+  const data = sheet.getDataRange().getValues();
+  let config = { subjects: [] };
+  data.forEach(row => {
+    if (row[0] === 'Subjects') config.subjects = String(row[1]).split(',').map(s => s.trim()).filter(s => s !== "");
+  });
   return config;
+}
+
+function saveConfig(subjects) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Config') || ss.insertSheet('Config');
+  sheet.clear().appendRow(['Param', 'Value']);
+  sheet.appendRow(['Subjects', Array.isArray(subjects) ? subjects.join(',') : subjects]);
+  return { success: true };
+}
+
+function getKnownFaces() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Students') || ss.insertSheet('Students');
+  if (sheet.getLastRow() < 2) return [];
+  return sheet.getDataRange().getValues().slice(1).map(row => ({ 
+    name: row[0], 
+    descriptor: JSON.parse(row[1]) 
+  }));
+}
+
+function registerStudent(name, descriptor) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Students') || ss.insertSheet('Students');
+  sheet.appendRow([name, JSON.stringify(descriptor), new Date()]);
+  return { success: true };
+}
+
+function logAttendance(name, subject) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Attendance') || ss.insertSheet('Attendance');
+  if (sheet.getLastRow() === 0) sheet.appendRow(['Name', 'Time', 'Date', 'Subject']);
+  
+  const now = new Date();
+  const dateStr = Utilities.formatDate(now, "GMT+7", 'yyyy-MM-dd');
+  const timeStr = Utilities.formatDate(now, "GMT+7", 'HH:mm:ss');
+  
+  sheet.appendRow([name, timeStr, dateStr, subject]);
+  return { success: true };
+}
+
+function getAttendanceReport(targetDate, subject) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const studentSheet = ss.getSheetByName('Students');
+  const attSheet = ss.getSheetByName('Attendance');
+  const allStudents = studentSheet ? studentSheet.getDataRange().getValues().slice(1).map(r => r[0]) : [];
+  const attendanceData = attSheet ? attSheet.getDataRange().getValues().slice(1) : [];
+  
+  const filtered = attendanceData.filter(row => {
+    const rowDate = row[2] instanceof Date ? Utilities.formatDate(row[2], "GMT+7", 'yyyy-MM-dd') : String(row[2]);
+    return rowDate === targetDate && row[3] === subject;
+  });
+  
+  return {
+    attendance: filtered.map(row => ({ name: row[0], time: row[1] })),
+    stats: { total: allStudents.length, present: filtered.length, absent: Math.max(0, allStudents.length - filtered.length) }
+  };
 }
