@@ -1,110 +1,93 @@
 /**
- * ============================================================
- * ระบบเช็คชื่อรายวิชาด้วยใบหน้า (เวอร์ชันสมบูรณ์ - No GPS)
- * วิธีใช้: Deploy > New deployment > Web App
- * Execute as: Me | Who has access: Anyone
- * ============================================================
+ * แก้ไขระบบรายงานสถิติ: ปรับปรุงการเปรียบเทียบวันที่ให้แม่นยำ
  */
 
 function doGet(e) {
   const action = e.parameter.action;
   let result;
   try {
-    if (action === 'getConfig') { 
-      result = getConfig(); 
-    } else if (action === 'getKnownFaces') { 
-      result = getKnownFaces(); 
-    } else if (action === 'getSubjects') { 
-      result = getSubjects(); 
-    } else if (action === 'getAttendanceReport') { 
+    if (action === 'getConfig') { result = getConfig(); }
+    else if (action === 'getKnownFaces') { result = getKnownFaces(); }
+    else if (action === 'getSubjects') { result = getSubjects(); }
+    else if (action === 'getAttendanceReport') { 
+      // แก้ไข: ส่งค่า date และ subject ไปตรวจสอบ
       result = getAttendanceReport(e.parameter.date, e.parameter.subject); 
-    } else { 
-      result = { error: 'Unknown action: ' + action }; 
     }
-  } catch (err) {
-    result = { error: err.message };
-  }
+    else { result = { error: 'Unknown action' }; }
+  } catch (err) { result = { error: err.message }; }
   return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
-  let data;
-  try {
-    data = JSON.parse(e.postData.contents);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid JSON' })).setMimeType(ContentService.MimeType.JSON);
-  }
-
+  let data = JSON.parse(e.postData.contents);
   const action = data.action;
   let result;
   try {
-    if (action === 'login') { 
-      result = checkLogin(data.username, data.password); 
-    } else if (action === 'registerUser') { 
-      result = registerStudent(data.name, data.faceDescriptor); 
-    } else if (action === 'logAttendance') { 
-      result = logAttendance(data.name, data.subject); 
-    } else if (action === 'saveConfig') { 
-      result = saveConfig(data.subjects); 
-    } else if (action === 'deleteStudent') { 
-      result = deleteStudent(data.name); 
-    } else { 
-      result = { error: 'Unknown action' }; 
-    }
-  } catch (err) {
-    result = { success: false, error: err.message };
-  }
+    if (action === 'login') { result = checkLogin(data.username, data.password); }
+    else if (action === 'registerUser') { result = registerStudent(data.name, data.faceDescriptor); }
+    else if (action === 'logAttendance') { result = logAttendance(data.name, data.subject); }
+    else if (action === 'saveConfig') { result = saveConfig(data.subjects); }
+    else if (action === 'deleteStudent') { result = deleteStudent(data.name); }
+  } catch (err) { result = { success: false, error: err.message }; }
   return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
 }
 
-// --- 1. ระบบจัดการรายวิชา ---
-function getSubjects() {
-  const config = getConfig();
-  return config.subjects || [];
+// --- แก้ไขการบันทึกเวลา ---
+function logAttendance(name, subject) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Attendance') || ss.insertSheet('Attendance');
+  if (sheet.getLastRow() === 0) sheet.appendRow(['Name', 'Time', 'Date', 'Subject']);
+  
+  const now = new Date();
+  const timeStr = Utilities.formatDate(now, "GMT+7", 'HH:mm:ss');
+  // บันทึกวันที่ในรูปแบบ String yyyy-MM-dd เพื่อป้องกัน Format เพี้ยน
+  const dateStr = Utilities.formatDate(now, "GMT+7", 'yyyy-MM-dd');
+  
+  sheet.appendRow([name, timeStr, dateStr, subject]);
+  return { success: true, message: 'บันทึกสำเร็จ' };
 }
 
-function getConfig() {
+// --- แก้ไขการดึงรายงาน (จุดสำคัญที่ทำให้ขึ้นว่าขาดเรียน) ---
+function getAttendanceReport(targetDate, subject) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName('Config') || ss.insertSheet('Config');
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['Parameter', 'Value']);
-    sheet.appendRow(['Subjects', '']);
-  }
-  const data = sheet.getDataRange().getValues();
-  let config = { subjects: [] };
-  data.forEach(row => {
-    if (row[0] === 'Subjects') {
-      config.subjects = String(row[1]).split(',').map(s => s.trim()).filter(s => s !== "");
+  const studentSheet = ss.getSheetByName('Students');
+  const attSheet = ss.getSheetByName('Attendance');
+  
+  // 1. รายชื่อนักเรียนทั้งหมด
+  const allStudents = studentSheet ? studentSheet.getDataRange().getValues().slice(1).map(r => r[0].toString().trim()) : [];
+  
+  // 2. ข้อมูลการเข้าเรียน
+  if (!attSheet) return { attendance: [], stats: { total: allStudents.length, present: 0, absent: allStudents.length } };
+  
+  const attendanceData = attSheet.getDataRange().getValues().slice(1);
+  
+  // กรองเฉพาะวันที่และวิชาที่เลือก
+  const filtered = attendanceData.filter(row => {
+    let rowDate = row[2];
+    // แปลงวันที่จาก Sheet ให้เป็น yyyy-MM-dd เสมอไม่ว่าจะมาเป็น Date object หรือ String
+    if (rowDate instanceof Date) {
+      rowDate = Utilities.formatDate(rowDate, "GMT+7", "yyyy-MM-dd");
+    } else {
+      rowDate = String(rowDate).trim();
     }
+    
+    const rowSubject = String(row[3]).trim();
+    return rowDate === targetDate && rowSubject === subject;
   });
-  return config;
-}
 
-function saveConfig(subjects) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName('Config') || ss.insertSheet('Config');
-  sheet.clear().appendRow(['Parameter', 'Value']);
-  sheet.appendRow(['Subjects', Array.isArray(subjects) ? subjects.join(',') : subjects]);
-  return { success: true, message: 'บันทึกรายวิชาเรียบร้อยแล้ว' };
-}
-
-// --- 2. ระบบจัดการนักเรียนและตรวจสอบข้อมูลซ้ำ ---
-function registerStudent(name, descriptor) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName('Students') || ss.insertSheet('Students');
-  if (sheet.getLastRow() === 0) sheet.appendRow(['Name', 'FaceDescriptor', 'RegDate']);
+  const presentNames = filtered.map(row => row[0].toString().trim());
   
-  const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0].toString().trim().toLowerCase() === name.trim().toLowerCase()) {
-      return { success: false, message: 'ชื่อนี้มีอยู่ในระบบแล้ว' };
+  return {
+    attendance: filtered.map(row => ({ name: row[0], time: row[1] })),
+    stats: { 
+      total: allStudents.length, 
+      present: filtered.length, 
+      absent: Math.max(0, allStudents.length - filtered.length) 
     }
-  }
-  
-  sheet.appendRow([name.trim(), JSON.stringify(descriptor), new Date()]);
-  return { success: true, message: 'ลงทะเบียนสำเร็จ' };
+  };
 }
 
+// ฟังก์ชันอื่นๆ (getKnownFaces, deleteStudent, etc.) ให้ใช้ตามเวอร์ชันสมบูรณ์ก่อนหน้า
 function getKnownFaces() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName('Students') || ss.insertSheet('Students');
@@ -117,63 +100,34 @@ function getKnownFaces() {
   }));
 }
 
-function deleteStudent(name) {
+function getSubjects() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('Students');
-  if (!sheet) return { success: false };
+  let sheet = ss.getSheetByName('Config');
+  if (!sheet) return [];
   const data = sheet.getDataRange().getValues();
-  for (let i = data.length - 1; i >= 1; i--) {
-    if (data[i][0].toString().trim() === name.trim()) {
-      sheet.deleteRow(i + 1);
-    }
-  }
-  return { success: true };
-}
-
-// --- 3. ระบบเช็คชื่อ ---
-function logAttendance(name, subject) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName('Attendance') || ss.insertSheet('Attendance');
-  if (sheet.getLastRow() === 0) sheet.appendRow(['Name', 'Time', 'Date', 'Subject']);
-  
-  const now = new Date();
-  const dateStr = Utilities.formatDate(now, "GMT+7", 'yyyy-MM-dd');
-  const timeStr = Utilities.formatDate(now, "GMT+7", 'HH:mm:ss');
-  
-  sheet.appendRow([name, timeStr, dateStr, subject]);
-  return { success: true };
-}
-
-function getAttendanceReport(targetDate, subject) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const studentSheet = ss.getSheetByName('Students');
-  const attSheet = ss.getSheetByName('Attendance');
-  
-  const allStudents = studentSheet ? studentSheet.getDataRange().getValues().slice(1).map(r => r[0]) : [];
-  const attendanceData = attSheet ? attSheet.getDataRange().getValues().slice(1) : [];
-  
-  const filtered = attendanceData.filter(row => {
-    const rowDate = row[2] instanceof Date ? Utilities.formatDate(row[2], "GMT+7", 'yyyy-MM-dd') : String(row[2]);
-    return rowDate === targetDate && row[3] === subject;
+  let subjects = [];
+  data.forEach(row => {
+    if (row[0] === 'Subjects') subjects = String(row[1]).split(',').map(s => s.trim()).filter(s => s !== "");
   });
-  
-  return {
-    attendance: filtered.map(row => ({ name: row[0], time: row[1] })),
-    stats: { total: allStudents.length, present: filtered.length, absent: Math.max(0, allStudents.length - filtered.length) }
-  };
+  return subjects;
 }
 
-// --- 4. ระบบ Login สำหรับอาจารย์ ---
-function checkLogin(username, password) {
+function registerStudent(name, descriptor) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName('Admins') || ss.insertSheet('Admins');
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['Username', 'Password']);
-    sheet.appendRow(['admin', '1234']); 
-  }
+  let sheet = ss.getSheetByName('Students') || ss.insertSheet('Students');
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === username && String(data[i][1]) === String(password)) return { success: true };
+    if (data[i][0].toString().trim().toLowerCase() === name.trim().toLowerCase()) return { success: false, message: 'ชื่อซ้ำ' };
   }
+  sheet.appendRow([name.trim(), JSON.stringify(descriptor), new Date()]);
+  return { success: true };
+}
+
+function checkLogin(u, p) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Admins') || ss.insertSheet('Admins');
+  if (sheet.getLastRow() === 0) { sheet.appendRow(['Username', 'Password']); sheet.appendRow(['admin', '1234']); }
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) { if (data[i][0] === u && String(data[i][1]) === String(p)) return { success: true }; }
   return { success: false };
 }
