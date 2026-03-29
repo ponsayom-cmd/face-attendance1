@@ -1,5 +1,5 @@
 /**
- * แก้ไขระบบรายงานสถิติ: ปรับปรุงการเปรียบเทียบวันที่ให้แม่นยำ
+ * แก้ไขระบบรายงานสถิติ: ปรับปรุงการเปรียบเทียบชื่อและวันที่ให้แม่นยำ 100%
  */
 
 function doGet(e) {
@@ -10,7 +10,6 @@ function doGet(e) {
     else if (action === 'getKnownFaces') { result = getKnownFaces(); }
     else if (action === 'getSubjects') { result = getSubjects(); }
     else if (action === 'getAttendanceReport') { 
-      // แก้ไข: ส่งค่า date และ subject ไปตรวจสอบ
       result = getAttendanceReport(e.parameter.date, e.parameter.subject); 
     }
     else { result = { error: 'Unknown action' }; }
@@ -32,7 +31,7 @@ function doPost(e) {
   return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
 }
 
-// --- แก้ไขการบันทึกเวลา ---
+// --- บันทึกการเข้าเรียน (เน้น Clean Data) ---
 function logAttendance(name, subject) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName('Attendance') || ss.insertSheet('Attendance');
@@ -40,31 +39,30 @@ function logAttendance(name, subject) {
   
   const now = new Date();
   const timeStr = Utilities.formatDate(now, "GMT+7", 'HH:mm:ss');
-  // บันทึกวันที่ในรูปแบบ String yyyy-MM-dd เพื่อป้องกัน Format เพี้ยน
   const dateStr = Utilities.formatDate(now, "GMT+7", 'yyyy-MM-dd');
   
-  sheet.appendRow([name, timeStr, dateStr, subject]);
-  return { success: true, message: 'บันทึกสำเร็จ' };
+  // บันทึกแบบตัดช่องว่างออกให้สะอาด
+  sheet.appendRow([name.toString().trim(), timeStr, dateStr, subject.toString().trim()]);
+  return { success: true };
 }
 
-// --- แก้ไขการดึงรายงาน (จุดสำคัญที่ทำให้ขึ้นว่าขาดเรียน) ---
-function getAttendanceReport(targetDate, subject) {
+// --- ฟังก์ชันดึงรายงาน (แก้ไขจุดที่ทำให้ขึ้นว่าขาดเรียน) ---
+function getAttendanceReport(targetDate, targetSubject) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const studentSheet = ss.getSheetByName('Students');
   const attSheet = ss.getSheetByName('Attendance');
   
-  // 1. รายชื่อนักเรียนทั้งหมด
+  // 1. ดึงรายชื่อนักเรียนทั้งหมดจากฐานข้อมูล (ทำความสะอาดชื่อ)
   const allStudents = studentSheet ? studentSheet.getDataRange().getValues().slice(1).map(r => r[0].toString().trim()) : [];
   
-  // 2. ข้อมูลการเข้าเรียน
+  // 2. ดึงข้อมูลการเข้าเรียน
   if (!attSheet) return { attendance: [], stats: { total: allStudents.length, present: 0, absent: allStudents.length } };
   
-  const attendanceData = attSheet.getDataRange().getValues().slice(1);
+  const attendanceRows = attSheet.getDataRange().getValues().slice(1);
   
-  // กรองเฉพาะวันที่และวิชาที่เลือก
-  const filtered = attendanceData.filter(row => {
+  // 3. กรองเฉพาะวันที่และวิชาที่เลือก (ใช้ String Comparison ที่ปลอดภัย)
+  const presentData = attendanceRows.filter(row => {
     let rowDate = row[2];
-    // แปลงวันที่จาก Sheet ให้เป็น yyyy-MM-dd เสมอไม่ว่าจะมาเป็น Date object หรือ String
     if (rowDate instanceof Date) {
       rowDate = Utilities.formatDate(rowDate, "GMT+7", "yyyy-MM-dd");
     } else {
@@ -72,34 +70,28 @@ function getAttendanceReport(targetDate, subject) {
     }
     
     const rowSubject = String(row[3]).trim();
-    return rowDate === targetDate && rowSubject === subject;
+    // เทียบวันที่ตรงกัน และวิชาตรงกัน
+    return rowDate === targetDate && rowSubject === targetSubject.trim();
   });
 
-  const presentNames = filtered.map(row => row[0].toString().trim());
-  
+  // 4. สร้างรายการชื่อคนที่มาเรียน (ตัดช่องว่าง)
+  const presentNames = presentData.map(row => row[0].toString().trim());
+
+  // 5. คำนวณรายชื่อคนที่ขาด (คนที่มีชื่อใน Students แต่ไม่มีชื่อใน presentNames ของวัน/วิชานั้น)
+  const absentStudents = allStudents.filter(name => !presentNames.includes(name));
+
   return {
-    attendance: filtered.map(row => ({ name: row[0], time: row[1] })),
+    attendance: presentData.map(row => ({ name: row[0], time: row[1] })),
+    absentList: absentStudents, // ส่งรายชื่อคนขาดกลับไปด้วย
     stats: { 
       total: allStudents.length, 
-      present: filtered.length, 
-      absent: Math.max(0, allStudents.length - filtered.length) 
+      present: presentNames.length, 
+      absent: absentStudents.length 
     }
   };
 }
 
-// ฟังก์ชันอื่นๆ (getKnownFaces, deleteStudent, etc.) ให้ใช้ตามเวอร์ชันสมบูรณ์ก่อนหน้า
-function getKnownFaces() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName('Students') || ss.insertSheet('Students');
-  if (sheet.getLastRow() < 2) return [];
-  const data = sheet.getDataRange().getValues();
-  return data.slice(1).map(row => ({ 
-    name: row[0], 
-    descriptor: JSON.parse(row[1]),
-    regDate: row[2] ? Utilities.formatDate(new Date(row[2]), "GMT+7", "dd/MM/yyyy HH:mm") : '-'
-  }));
-}
-
+// --- ฟังก์ชันเสริมอื่นๆ ---
 function getSubjects() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName('Config');
@@ -115,19 +107,22 @@ function getSubjects() {
 function registerStudent(name, descriptor) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName('Students') || ss.insertSheet('Students');
+  if (sheet.getLastRow() === 0) sheet.appendRow(['Name', 'FaceDescriptor', 'RegDate']);
   const data = sheet.getDataRange().getValues();
+  const newName = name.trim();
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0].toString().trim().toLowerCase() === name.trim().toLowerCase()) return { success: false, message: 'ชื่อซ้ำ' };
+    if (data[i][0].toString().trim().toLowerCase() === newName.toLowerCase()) return { success: false, message: 'ชื่อนี้มีอยู่แล้ว' };
   }
-  sheet.appendRow([name.trim(), JSON.stringify(descriptor), new Date()]);
+  sheet.appendRow([newName, JSON.stringify(descriptor), new Date()]);
   return { success: true };
 }
 
-function checkLogin(u, p) {
+function getKnownFaces() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName('Admins') || ss.insertSheet('Admins');
-  if (sheet.getLastRow() === 0) { sheet.appendRow(['Username', 'Password']); sheet.appendRow(['admin', '1234']); }
-  const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) { if (data[i][0] === u && String(data[i][1]) === String(p)) return { success: true }; }
-  return { success: false };
+  let sheet = ss.getSheetByName('Students') || ss.insertSheet('Students');
+  if (sheet.getLastRow() < 2) return [];
+  return sheet.getDataRange().getValues().slice(1).map(row => ({ 
+    name: row[0].toString().trim(), 
+    descriptor: JSON.parse(row[1])
+  }));
 }
