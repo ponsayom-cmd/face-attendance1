@@ -6,88 +6,94 @@
   <title>System Settings</title>
   <style>
     body { font-family: sans-serif; background: #0f172a; color: white; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-    .card { background: #1e293b; padding: 30px; border-radius: 20px; width: 100%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+    .card { background: #1e293b; padding: 30px; border-radius: 20px; width: 100%; max-width: 450px; }
+    h2 { margin-top: 0; text-align: center; }
     label { display: block; margin: 15px 0 5px; font-size: 0.85rem; color: #94a3b8; }
-    input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; font-size: 1rem; }
-    .btn { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; margin-top: 15px; font-size: 1rem; }
-    .btn-save { background: #6366f1; color: white; }
-    .btn-gps { background: #10b981; color: white; }
-    .back { display: block; text-align: center; margin-top: 20px; color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+    input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
+    .btn-group { display: flex; gap: 10px; margin-bottom: 15px; }
+    .btn { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
+    .btn-add { background: #6366f1; color: white; width: auto; padding: 12px 20px; margin: 0; }
+    .btn-save { background: #10b981; color: white; font-size: 1.1rem; }
+    .subject-list { background: #0f172a; border-radius: 10px; padding: 10px; min-height: 80px; border: 1px solid #334155; margin-top: 5px; }
+    .subject-item { display: flex; justify-content: space-between; padding: 8px 10px; background: #1e293b; border-radius: 6px; margin-bottom: 5px; }
+    .btn-del { color: #f87171; cursor: pointer; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h2 style="margin-top:0;">⚙️ ตั้งค่าระบบ</h2>
+    <h2>⚙️ ตั้งค่ารายวิชา</h2>
     
-    <label>Google Web App URL (API)</label>
-    <input type="text" id="https://script.google.com/macros/s/AKfycbzJyRzrNTDBNaEkMyyHocqPFdNehAB8akZ5mRyMhHunLioKPNAAk-h3MlO2nKtVj0aC-w/exec" placeholder="https://script.google.com/macros/s/...">
+    <label>Google Script API URL</label>
+    <input type="text" id="apiUrl" placeholder="https://script.google.com/macros/s/...">
 
-    <label>รายวิชา (คั่นด้วยเครื่องหมายคอมม่า ,)</label>
-    <input type="text" id="subjects" placeholder="เช่น ภาษาไทย, คณิตศาสตร์, วิทยาศาสตร์">
+    <div style="border-top: 1px solid #334155; margin: 25px 0;"></div>
 
-    <label>เวลาเริ่มเรียน (เช็คสายหลังเวลานี้)</label>
-    <input type="time" id="startTime">
-
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-      <div><label>พิกัด Latitude</label><input type="text" id="lat"></div>
-      <div><label>พิกัด Longitude</label><input type="text" id="lng"></div>
+    <label>เพิ่มรายวิชาใหม่</label>
+    <div class="btn-group">
+      <input type="text" id="subjectInp" placeholder="ชื่อรายวิชา">
+      <button class="btn-add" onclick="addSubject()">เพิ่ม</button>
     </div>
 
-    <button class="btn btn-gps" onclick="getCurrentLocation()">📍 ดึงพิกัดปัจจุบันจาก GPS</button>
-    <button class="btn btn-save" onclick="saveSettings()">💾 บันทึกการตั้งค่า</button>
+    <label>รายการวิชาที่มีในระบบ</label>
+    <div class="subject-list" id="subjectList"></div>
+
+    <button class="btn btn-save" onclick="saveSettings()">💾 บันทึกข้อมูลลงฐานข้อมูล</button>
     
-    <a href="report.html" class="back">🔙 กลับหน้าสถิติ</a>
+    <a href="report.html" style="display:block; text-align:center; margin-top:20px; color:#94a3b8; text-decoration:none;">🔙 กลับหน้าหลัก</a>
   </div>
 
   <script>
     if(sessionStorage.getItem('isAdmin') !== 'true') window.location.href = 'login.html';
+    let subjects = [];
 
-    // โหลดค่าเดิม
-    const savedUrl = localStorage.getItem('gasApiUrl');
-    if(savedUrl) {
-      document.getElementById('apiUrl').value = savedUrl;
-      fetch(`${savedUrl}?action=getConfig`).then(r => r.json()).then(d => {
-        document.getElementById('lat').value = d.lat;
-        document.getElementById('lng').value = d.lng;
-        document.getElementById('startTime').value = d.startTime;
-        document.getElementById('subjects').value = d.subjects.join(', ');
-      }).catch(err => console.log('API ยังไม่ถูกติดตั้งหรือ URL ผิด'));
+    window.onload = async () => {
+      const savedUrl = localStorage.getItem('gasApiUrl');
+      if(savedUrl) {
+        document.getElementById('apiUrl').value = savedUrl;
+        const res = await fetch(`${savedUrl}?action=getConfig`);
+        const data = await res.json();
+        subjects = data.subjects || [];
+        render();
+      }
+    };
+
+    function addSubject() {
+      const inp = document.getElementById('subjectInp');
+      if(inp.value.trim() && !subjects.includes(inp.value.trim())) {
+        subjects.push(inp.value.trim());
+        inp.value = '';
+        render();
+      }
     }
 
-    function getCurrentLocation() {
-      navigator.geolocation.getCurrentPosition(p => {
-        document.getElementById('lat').value = p.coords.latitude;
-        document.getElementById('lng').value = p.coords.longitude;
-        alert('ดึงพิกัดเรียบร้อย');
-      }, () => alert('ไม่สามารถดึง GPS ได้ กรุณาเปิดสิทธิ์ใน Browser'));
+    function remove(idx) {
+      subjects.splice(idx, 1);
+      render();
+    }
+
+    function render() {
+      const list = document.getElementById('subjectList');
+      if(subjects.length === 0) { list.innerHTML = '<p style="color:#475569; text-align:center">ยังไม่มีวิชา</p>'; return; }
+      list.innerHTML = subjects.map((s, i) => `
+        <div class="subject-item">
+          <span>${s}</span>
+          <span class="btn-del" onclick="remove(${i})">✕ ลบ</span>
+        </div>
+      `).join('');
     }
 
     async function saveSettings() {
       const url = document.getElementById('apiUrl').value.trim();
       if(!url) return alert('กรุณาใส่ API URL');
-      
       localStorage.setItem('gasApiUrl', url);
-      const subjects = document.getElementById('subjects').value.split(',').map(s => s.trim()).filter(s => s !== "");
 
       try {
-        const response = await fetch(url, { 
-          method: 'POST', 
-          body: JSON.stringify({
-            action: 'saveConfig', 
-            lat: document.getElementById('lat').value, 
-            lng: document.getElementById('lng').value,
-            radius: 0.1, 
-            startTime: document.getElementById('startTime').value, 
-            subjects: subjects
-          })
-        });
-        const result = await response.json();
-        if(result.success) {
-          alert('บันทึกการตั้งค่าเรียบร้อย!');
-          window.location.reload();
-        }
+        await fetch(url, { method: 'POST', body: JSON.stringify({
+          action: 'saveConfig', subjects: subjects
+        })});
+        alert('บันทึกสำเร็จ!');
       } catch (e) {
-        alert('ไม่สามารถเชื่อมต่อ API ได้ กรุณาตรวจสอบ URL');
+        alert('บันทึกล้มเหลว ตรวจสอบ URL');
       }
     }
   </script>
