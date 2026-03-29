@@ -3,202 +3,101 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>รายงานการเข้าเรียน</title>
-  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>สรุปรายงานการเข้าเรียน</title>
   <style>
-    body { font-family: 'Sarabun', sans-serif; background: #0f172a; color: white; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-    .container { width: 100%; max-width: 900px; background: #1e293b; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-    h2 { margin: 0 0 20px 0; text-align: center; color: #f8fafc; }
-    
-    .filter-section { display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; margin-bottom: 25px; background: #0f172a; padding: 20px; border-radius: 15px; align-items: flex-end; }
-    .filter-group { display: flex; flex-direction: column; gap: 5px; }
-    label { font-size: 0.85rem; color: #94a3b8; }
-    input, select { padding: 12px; border-radius: 10px; border: 1px solid #334155; background: #1e293b; color: white; font-size: 1rem; }
-    
-    .btn-search { background: #6366f1; color: white; border: none; padding: 12px 25px; border-radius: 10px; font-weight: bold; cursor: pointer; height: 48px; }
-    .btn-search:hover { background: #4f46e5; }
-
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 25px; }
-    .stat-card { background: #0f172a; padding: 20px; border-radius: 15px; text-align: center; border-bottom: 4px solid #334155; }
-    .stat-card.total { border-color: #6366f1; }
-    .stat-card.present { border-color: #10b981; }
-    .stat-card.absent { border-color: #f87171; }
-    .stat-value { font-size: 1.8rem; font-weight: bold; margin: 5px 0; }
-    .stat-label { font-size: 0.85rem; color: #94a3b8; }
-
-    .report-table { width: 100%; border-collapse: collapse; background: #0f172a; border-radius: 15px; overflow: hidden; margin-top: 10px; }
-    th, td { padding: 15px; text-align: left; border-bottom: 1px solid #1e293b; }
-    th { background: #334155; color: #94a3b8; font-size: 0.85rem; text-transform: uppercase; }
-    .status-tag { padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; }
-    .tag-present { background: rgba(16, 185, 129, 0.2); color: #10b981; }
-    
-    .chart-container { background: #0f172a; padding: 20px; border-radius: 15px; margin-bottom: 25px; display: flex; justify-content: center; height: 300px; }
-    
-    .no-data { text-align: center; padding: 40px; color: #64748b; }
-    .nav-links { display: flex; gap: 20px; margin-top: 30px; }
-    .nav-links a { color: #94a3b8; text-decoration: none; font-size: 0.9rem; transition: 0.3s; }
-    .nav-links a:hover { color: white; }
+    body { font-family: sans-serif; background: #0f172a; color: white; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+    .container { width: 100%; max-width: 900px; background: #1e293b; padding: 20px; border-radius: 20px; }
+    .card { background: #0f172a; padding: 20px; border-radius: 15px; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .stat-item { text-align: center; padding: 15px; border-radius: 10px; background: #1e293b; }
+    .label { font-size: 0.8rem; color: #94a3b8; }
+    .value { font-size: 1.5rem; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
+    th { background: #334155; font-size: 0.8rem; color: #94a3b8; }
+    .text-present { color: #10b981; }
+    .text-absent { color: #f87171; }
+    .filter-box { display: flex; gap: 10px; margin-bottom: 20px; align-items: flex-end; }
+    select, input { padding: 10px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; }
+    button { padding: 10px 20px; background: #6366f1; color: white; border: none; border-radius: 8px; cursor: pointer; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h2>📊 รายงานสถิติการเข้าเรียน</h2>
-
-    <!-- ส่วนตัวกรองข้อมูล -->
-    <div class="filter-section">
-      <div class="filter-group">
-        <label>เลือกวันที่</label>
+    <h2>📊 รายงานสถิติ</h2>
+    
+    <div class="filter-box">
+      <div>
+        <div class="label">วันที่</div>
         <input type="date" id="dateInput">
       </div>
-      <div class="filter-group">
-        <label>เลือกรายวิชา</label>
-        <select id="subjectSelect">
-          <option value="">⏳ กำลังโหลดวิชา...</option>
-        </select>
+      <div>
+        <div class="label">รายวิชา</div>
+        <select id="subjectSelect"><option>โหลดวิชา...</option></select>
       </div>
-      <button class="btn-search" onclick="fetchReport()">🔍 ค้นหา</button>
+      <button onclick="loadReport()">🔍 ค้นหา</button>
     </div>
 
-    <!-- ส่วนสรุปตัวเลข -->
-    <div class="stats-grid" id="statsGrid" style="display: none;">
-      <div class="stat-card total">
-        <div class="stat-label">นักเรียนทั้งหมด</div>
-        <div class="stat-value" id="totalCount">0</div>
+    <div class="grid">
+      <div class="stat-item">
+        <div class="label">ทั้งหมด</div>
+        <div class="value" id="vTotal">0</div>
       </div>
-      <div class="stat-card present">
-        <div class="stat-label">มาเรียน</div>
-        <div class="stat-value" id="presentCount">0</div>
+      <div class="stat-item">
+        <div class="label text-present">มาเรียน</div>
+        <div class="value text-present" id="vPresent">0</div>
       </div>
-      <div class="stat-card absent">
-        <div class="stat-label">ขาดเรียน</div>
-        <div class="stat-value" id="absentCount">0</div>
+      <div class="stat-item">
+        <div class="label text-absent">ขาดเรียน</div>
+        <div class="value text-absent" id="vAbsent">0</div>
       </div>
     </div>
 
-    <!-- กราฟวงกลม -->
-    <div class="chart-container" id="chartBox" style="display: none;">
-      <canvas id="attendanceChart"></canvas>
+    <div class="card">
+      <h3 class="text-present">✅ รายชื่อนักเรียนที่มาเรียน</h3>
+      <table id="presentTable">
+        <thead><tr><th>ชื่อ</th><th>เวลาสแกน</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </div>
 
-    <!-- ตารางรายชื่อที่มาเรียน -->
-    <div id="reportContent">
-      <div class="no-data">กรุณาเลือกวันที่และวิชา แล้วกดปุ่มค้นหา</div>
-    </div>
-
-    <div class="nav-links">
-      <a href="index.html">🏠 กลับหน้าหลัก</a>
-      <a href="manage-students.html">👥 จัดการนักเรียน</a>
-      <a href="config.html">⚙️ ตั้งค่าระบบ</a>
+    <div class="card">
+      <h3 class="text-absent">❌ รายชื่อนักเรียนที่ขาดเรียน</h3>
+      <table id="absentTable">
+        <thead><tr><th>ชื่อ</th><th>สถานะ</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </div>
   </div>
 
   <script>
     const API_URL = localStorage.getItem('gasApiUrl');
-    let myChart = null;
 
     window.onload = async () => {
-      if (!API_URL) return alert('กรุณาตั้งค่า API URL ก่อน');
-      
-      // ตั้งค่าวันที่เริ่มต้นเป็นวันนี้
-      const today = new Date().toISOString().split('T')[0];
-      document.getElementById('dateInput').value = today;
-
-      // โหลดรายวิชามาใส่ใน Select
-      try {
-        const res = await fetch(`${API_URL}?action=getSubjects`);
-        const subjects = await res.json();
-        const select = document.getElementById('subjectSelect');
-        if (subjects.length > 0) {
-          select.innerHTML = subjects.map(s => `<option value="${s}">${s}</option>`).join('');
-        } else {
-          select.innerHTML = '<option value="">ไม่มีรายวิชา</option>';
-        }
-      } catch (e) {
-        console.error('Error loading subjects:', e);
-      }
+      document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+      const res = await fetch(`${API_URL}?action=getSubjects`);
+      const subs = await res.json();
+      document.getElementById('subjectSelect').innerHTML = subs.map(s => `<option value="${s}">${s}</option>`).join('');
     };
 
-    async function fetchReport() {
+    async function loadReport() {
       const date = document.getElementById('dateInput').value;
-      const subject = document.getElementById('subjectSelect').value;
-      const content = document.getElementById('reportContent');
+      const sub = document.getElementById('subjectSelect').value;
       
-      if (!date || !subject) return alert('กรุณาเลือกข้อมูลให้ครบ');
+      const res = await fetch(`${API_URL}?action=getAttendanceReport&date=${date}&subject=${encodeURIComponent(sub)}`);
+      const data = await res.json();
 
-      content.innerHTML = '<div class="no-data">⏳ กำลังประมวลผลข้อมูล...</div>';
-      
-      try {
-        const res = await fetch(`${API_URL}?action=getAttendanceReport&date=${date}&subject=${encodeURIComponent(subject)}`);
-        const data = await res.json();
+      document.getElementById('vTotal').innerText = data.stats.total;
+      document.getElementById('vPresent').innerText = data.stats.present;
+      document.getElementById('vAbsent').innerText = data.stats.absent;
 
-        if (data.error) throw new Error(data.error);
+      // ตารางคนมา
+      const pBody = document.querySelector('#presentTable tbody');
+      pBody.innerHTML = data.attendance.length ? data.attendance.map(i => `<tr><td>${i.name}</td><td>${i.time}</td></tr>`).join('') : '<tr><td colspan="2">ไม่มีข้อมูล</td></tr>';
 
-        // แสดงสถิติ
-        document.getElementById('statsGrid').style.display = 'grid';
-        document.getElementById('chartBox').style.display = 'flex';
-        document.getElementById('totalCount').innerText = data.stats.total;
-        document.getElementById('presentCount').innerText = data.stats.present;
-        document.getElementById('absentCount').innerText = data.stats.absent;
-
-        // วาดกราฟ
-        updateChart(data.stats.present, data.stats.absent);
-
-        // แสดงตารางรายชื่อผู้มาเรียน
-        if (data.attendance.length === 0) {
-          content.innerHTML = '<div class="no-data">❌ ไม่พบข้อมูลการเข้าเรียนในวิชาและวันที่ระบุ</div>';
-        } else {
-          let tableHtml = `
-            <table class="report-table">
-              <thead>
-                <tr>
-                  <th>ชื่อ-นามสกุล</th>
-                  <th>เวลาที่สแกน</th>
-                  <th>สถานะ</th>
-                </tr>
-              </thead>
-              <tbody>
-          `;
-          data.attendance.forEach(item => {
-            tableHtml += `
-              <tr>
-                <td>${item.name}</td>
-                <td>${item.time}</td>
-                <td><span class="status-tag tag-present">มาเรียน</span></td>
-              </tr>
-            `;
-          });
-          tableHtml += `</tbody></table>`;
-          content.innerHTML = tableHtml;
-        }
-      } catch (e) {
-        content.innerHTML = `<div class="no-data" style="color:#f87171">❌ เกิดข้อผิดพลาด: ${e.message}</div>`;
-      }
-    }
-
-    function updateChart(present, absent) {
-      const ctx = document.getElementById('attendanceChart').getContext('2d');
-      
-      if (myChart) myChart.destroy(); // ลบกราฟเก่าก่อนวาดใหม่
-
-      myChart = new Chart(ctx, {
-        type: 'pie',
-        data: {
-          labels: ['มาเรียน', 'ขาดเรียน'],
-          datasets: [{
-            data: [present, absent],
-            backgroundColor: ['#10b981', '#f87171'],
-            borderWidth: 0
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'bottom', labels: { color: '#94a3b8', font: { family: 'Sarabun' } } }
-          }
-        }
-      });
+      // ตารางคนขาด
+      const aBody = document.querySelector('#absentTable tbody');
+      aBody.innerHTML = data.absentList.length ? data.absentList.map(name => `<tr><td>${name}</td><td class="text-absent">ขาดเรียน</td></tr>`).join('') : '<tr><td colspan="2">ไม่มีคนขาดเรียน</td></tr>';
     }
   </script>
 </body>
