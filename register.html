@@ -3,62 +3,128 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Register Student</title>
+  <title>ลงทะเบียนนักเรียน</title>
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.js"></script>
   <style>
-    body { font-family: sans-serif; background: #0f172a; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-    .card { background: #1e293b; padding: 20px; border-radius: 20px; width: 100%; max-width: 450px; text-align: center; }
-    video { width: 100%; border-radius: 15px; transform: scaleX(-1); margin-top: 10px; }
-    input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
-    .btn { width: 100%; padding: 15px; border-radius: 10px; border: none; background: #10b981; color: white; font-weight: bold; cursor: pointer; }
-    #status { margin: 10px 0; color: #fbbf24; }
+    body { font-family: sans-serif; background: #0f172a; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; }
+    .reg-box { width: 100%; max-width: 500px; background: #1e293b; padding: 25px; border-radius: 20px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    video { width: 100%; border-radius: 15px; transform: scaleX(-1); background: #000; margin-bottom: 15px; }
+    input { width: 100%; padding: 15px; border-radius: 12px; background: #0f172a; color: white; border: 1px solid #334155; margin-bottom: 15px; font-size: 1rem; box-sizing: border-box; }
+    .btn { width: 100%; padding: 18px; border-radius: 12px; border: none; background: #10b981; color: white; font-weight: bold; cursor: pointer; font-size: 1.1rem; transition: 0.3s; }
+    .btn:disabled { background: #475569; cursor: not-allowed; }
+    #status { margin: 15px 0; font-size: 0.95rem; min-height: 24px; color: #94a3b8; }
+    .error { color: #f87171 !important; font-weight: bold; }
+    .success { color: #10b981 !important; font-weight: bold; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h2>👤 ลงทะเบียนนักเรียนใหม่</h2>
-    <input type="text" id="name" placeholder="ระบุชื่อ-นามสกุล">
+  <div class="reg-box">
+    <h2 style="margin-top: 0;">👤 ลงทะเบียนนักเรียนใหม่</h2>
+    <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 15px;">ชื่อ-นามสกุล และใบหน้าต้องไม่ซ้ำในระบบ</p>
+    
     <video id="video" autoplay muted playsinline></video>
-    <div id="status">กำลังเตรียมกล้อง...</div>
-    <button id="btnCap" class="btn" onclick="capture()" disabled>📸 บันทึกใบหน้า</button>
+    
+    <input type="text" id="studentName" placeholder="กรอกชื่อ-นามสกุลจริง">
+    
+    <div id="status">รอโหลด AI...</div>
+    
+    <button id="btnReg" class="btn" onclick="startRegister()" disabled>📝 ลงทะเบียนใบหน้า</button>
   </div>
+  
   <a href="index.html" style="color:#94a3b8; margin-top:20px; text-decoration:none;">กลับหน้าหลัก</a>
 
   <script>
     const API_URL = localStorage.getItem('gasApiUrl');
     const video = document.getElementById('video');
     const status = document.getElementById('status');
-    const btnCap = document.getElementById('btnCap');
+    const btnReg = document.getElementById('btnReg');
+    let knownFaces = [];
 
     window.onload = async () => {
-      await faceapi.nets.ssdMobilenetv1.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
-      await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
-      await faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
-      const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
-      video.srcObject = stream;
-      status.innerText = "ระบบ AI พร้อมใช้งาน";
-      btnCap.disabled = false;
+      if(!API_URL) return alert('กรุณาตั้งค่า API URL ก่อน');
+      
+      try {
+        status.innerText = "⏳ กำลังโหลด AI และฐานข้อมูลใบหน้า...";
+        // โหลด Model
+        await faceapi.nets.ssdMobilenetv1.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
+        await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
+        await faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
+
+        // ดึงใบหน้าที่มีอยู่แล้วมาเช็คซ้ำ
+        const res = await fetch(`${API_URL}?action=getKnownFaces`);
+        knownFaces = await res.json();
+
+        // เปิดกล้อง
+        const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+        video.srcObject = stream;
+        
+        status.innerText = "✅ พร้อมลงทะเบียน";
+        btnReg.disabled = false;
+      } catch (e) {
+        status.innerHTML = '<span class="error">❌ ไม่สามารถโหลดระบบได้</span>';
+        console.error(e);
+      }
     };
 
-    async function capture() {
-      const name = document.getElementById('name').value;
-      if(!name) return alert('กรุณาระบุชื่อ');
-      btnCap.disabled = true;
-      status.innerText = "⏳ กำลังวิเคราะห์ใบหน้า...";
-      
-      const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
-      if(!detection) {
-        alert('ไม่พบใบหน้า กรุณามองที่กล้อง');
-        btnCap.disabled = false;
+    async function startRegister() {
+      const name = document.getElementById('studentName').value.trim();
+      if(!name) {
+        status.innerHTML = '<span class="error">⚠️ กรุณากรอกชื่อก่อนลงทะเบียน</span>';
         return;
       }
 
-      await fetch(API_URL, { method: 'POST', body: JSON.stringify({
-        action: 'registerUser', name: name, faceDescriptor: Array.from(detection.descriptor)
-      })});
+      btnReg.disabled = true;
+      status.innerText = "⏳ กำลังวิเคราะห์ใบหน้า...";
+
+      // ตรวจจับใบหน้า
+      const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
       
-      alert('ลงทะเบียนสำเร็จ!');
-      window.location.href = 'index.html';
+      if(!detection) {
+        status.innerHTML = '<span class="error">❌ ไม่พบใบหน้า มองกล้องให้ชัดเจน</span>';
+        btnReg.disabled = false;
+        return;
+      }
+
+      // 1. ตรวจสอบใบหน้าซ้ำ (Face Duplicate Check)
+      if(knownFaces.length > 0) {
+        const faceDescriptors = knownFaces.map(d => new faceapi.LabeledFaceDescriptors(d.name, [new Float32Array(d.descriptor)]));
+        const faceMatcher = new faceapi.FaceMatcher(faceDescriptors, 0.5); // Threshold 0.5
+        const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+        
+        if(bestMatch.label !== 'unknown') {
+          status.innerHTML = `<span class="error">❌ ใบหน้านี้เคยลงทะเบียนแล้วในชื่อ: ${bestMatch.label}</span>`;
+          btnReg.disabled = false;
+          return;
+        }
+      }
+
+      // 2. ส่งไปบันทึก (Server Side จะเช็คชื่อซ้ำอีกรอบ)
+      status.innerText = "⏳ กำลังส่งข้อมูลไปยัง Google Sheets...";
+      
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'registerUser',
+            name: name,
+            faceDescriptor: Array.from(detection.descriptor)
+          })
+        });
+        
+        const result = await res.json();
+        
+        if(result.success) {
+          status.innerHTML = `<span class="success">✅ ลงทะเบียนคุณ ${name} สำเร็จ!</span>`;
+          alert('ลงทะเบียนสำเร็จ!');
+          window.location.href = 'index.html';
+        } else {
+          status.innerHTML = `<span class="error">❌ ${result.message}</span>`;
+          btnReg.disabled = false;
+        }
+      } catch (e) {
+        status.innerHTML = '<span class="error">❌ ติดปัญหาการเชื่อมต่อ API</span>';
+        btnReg.disabled = false;
+      }
     }
   </script>
 </body>
