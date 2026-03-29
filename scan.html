@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>สแกนหน้า</title>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.js"></script>
+  <style>
+    body { font-family: sans-serif; background: #0f172a; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+    .scan-box { width: 100%; max-width: 500px; background: #1e293b; padding: 20px; border-radius: 20px; text-align: center; }
+    video { width: 100%; border-radius: 15px; transform: scaleX(-1); }
+    select { width: 100%; padding: 15px; border-radius: 10px; background: #0f172a; color: white; border: 1px solid #334155; margin-bottom: 10px; }
+    .btn { width: 100%; padding: 18px; border-radius: 12px; border: none; background: #6366f1; color: white; font-weight: bold; cursor: pointer; }
+    #status { margin: 15px 0; color: #fbbf24; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="scan-box">
+    <h2>📸 เช็คชื่อเข้าเรียน</h2>
+    <select id="subSelect"><option>กำลังโหลดรายวิชา...</option></select>
+    <video id="video" autoplay muted playsinline></video>
+    <div id="status">กำลังโหลดระบบ...</div>
+    <button id="btnStart" class="btn" onclick="start()">เริ่มสแกน</button>
+  </div>
+  <a href="index.html" style="color:#94a3b8; margin-top:20px; text-decoration:none;">กลับหน้าหลัก</a>
+
+  <script>
+    const API_URL = localStorage.getItem('gasApiUrl');
+    const video = document.getElementById('video');
+    const status = document.getElementById('status');
+    let knownFaces = [];
+
+    window.onload = async () => {
+      await faceapi.nets.ssdMobilenetv1.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
+      await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
+      await faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
+      const res = await fetch(`${API_URL}?action=getSubjects`);
+      const subs = await res.json();
+      document.getElementById('subSelect').innerHTML = subs.map(s => `<option value="${s}">${s}</option>`).join('');
+      status.innerText = "ระบบพร้อมใช้งาน";
+    };
+
+    async function start() {
+      status.innerText = "⏳ กำลังดึงพิกัดและข้อมูลใบหน้า...";
+      const res = await fetch(`${API_URL}?action=getKnownFaces`);
+      const data = await res.json();
+      knownFaces = data.map(d => new faceapi.LabeledFaceDescriptors(d.name, [new Float32Array(d.descriptor)]));
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+      video.srcObject = stream;
+      recognize();
+    }
+
+    async function recognize() {
+      const matcher = new faceapi.FaceMatcher(knownFaces, 0.45);
+      const interval = setInterval(async () => {
+        const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+        if(detection) {
+          const match = matcher.findBestMatch(detection.descriptor);
+          if(match.label !== 'unknown') {
+            clearInterval(interval);
+            status.innerText = "✅ พบคุณ " + match.label;
+            save(match.label);
+          }
+        }
+      }, 1000);
+    }
+
+    async function save(name) {
+      await fetch(API_URL, { method: 'POST', body: JSON.stringify({
+        action: 'logAttendance', name: name, subject: document.getElementById('subSelect').value, lat: 0, lng: 0
+      })});
+      alert('เช็คชื่อสำเร็จ!');
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+</html>

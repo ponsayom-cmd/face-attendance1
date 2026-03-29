@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Login</title>
+  <style>
+    body { font-family: sans-serif; background: #0f172a; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+    .card { background: #1e293b; padding: 40px; border-radius: 20px; width: 350px; text-align: center; }
+    input { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
+    button { width: 100%; padding: 12px; border-radius: 8px; border: none; background: #6366f1; color: white; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>🔐 เข้าสู่ระบบอาจารย์</h2>
+    <input type="text" id="user" placeholder="Username">
+    <input type="password" id="pass" placeholder="Password">
+    <button onclick="login()">เข้าสู่ระบบ</button>
+  </div>
+  <script>
+    async function login() {
+      const url = localStorage.getItem('gasApiUrl');
+      const u = document.getElementById('user').value;
+      const p = document.getElementById('pass').value;
+      const res = await fetch(url, { method: 'POST', body: JSON.stringify({ action: 'login', username: u, password: p }) });
+      const data = await res.json();
+      if(data.success) {
+        sessionStorage.setItem('isAdmin', 'true');
+        window.location.href = 'report.html';
+      } else alert(data.message);
+    }
+  </script>
+</body>
+</html>

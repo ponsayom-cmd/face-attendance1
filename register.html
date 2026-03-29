@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register Student</title>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.js"></script>
+  <style>
+    body { font-family: sans-serif; background: #0f172a; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+    .card { background: #1e293b; padding: 20px; border-radius: 20px; width: 100%; max-width: 450px; text-align: center; }
+    video { width: 100%; border-radius: 15px; transform: scaleX(-1); margin-top: 10px; }
+    input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
+    .btn { width: 100%; padding: 15px; border-radius: 10px; border: none; background: #10b981; color: white; font-weight: bold; cursor: pointer; }
+    #status { margin: 10px 0; color: #fbbf24; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>👤 ลงทะเบียนนักเรียนใหม่</h2>
+    <input type="text" id="name" placeholder="ระบุชื่อ-นามสกุล">
+    <video id="video" autoplay muted playsinline></video>
+    <div id="status">กำลังเตรียมกล้อง...</div>
+    <button id="btnCap" class="btn" onclick="capture()" disabled>📸 บันทึกใบหน้า</button>
+  </div>
+  <a href="index.html" style="color:#94a3b8; margin-top:20px; text-decoration:none;">กลับหน้าหลัก</a>
+
+  <script>
+    const API_URL = localStorage.getItem('gasApiUrl');
+    const video = document.getElementById('video');
+    const status = document.getElementById('status');
+    const btnCap = document.getElementById('btnCap');
+
+    window.onload = async () => {
+      await faceapi.nets.ssdMobilenetv1.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
+      await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
+      await faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
+      const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+      video.srcObject = stream;
+      status.innerText = "ระบบ AI พร้อมใช้งาน";
+      btnCap.disabled = false;
+    };
+
+    async function capture() {
+      const name = document.getElementById('name').value;
+      if(!name) return alert('กรุณาระบุชื่อ');
+      btnCap.disabled = true;
+      status.innerText = "⏳ กำลังวิเคราะห์ใบหน้า...";
+      
+      const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+      if(!detection) {
+        alert('ไม่พบใบหน้า กรุณามองที่กล้อง');
+        btnCap.disabled = false;
+        return;
+      }
+
+      await fetch(API_URL, { method: 'POST', body: JSON.stringify({
+        action: 'registerUser', name: name, faceDescriptor: Array.from(detection.descriptor)
+      })});
+      
+      alert('ลงทะเบียนสำเร็จ!');
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+</html>

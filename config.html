@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>System Settings</title>
+  <style>
+    body { font-family: sans-serif; background: #0f172a; color: white; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    .card { background: #1e293b; padding: 30px; border-radius: 20px; width: 100%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+    label { display: block; margin: 15px 0 5px; font-size: 0.85rem; color: #94a3b8; }
+    input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; font-size: 1rem; }
+    .btn { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; margin-top: 15px; font-size: 1rem; }
+    .btn-save { background: #6366f1; color: white; }
+    .btn-gps { background: #10b981; color: white; }
+    .back { display: block; text-align: center; margin-top: 20px; color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 style="margin-top:0;">⚙️ ตั้งค่าระบบ</h2>
+    
+    <label>Google Web App URL (API)</label>
+    <input type="text" id="https://script.google.com/macros/s/AKfycbzJyRzrNTDBNaEkMyyHocqPFdNehAB8akZ5mRyMhHunLioKPNAAk-h3MlO2nKtVj0aC-w/exec" placeholder="https://script.google.com/macros/s/...">
+
+    <label>รายวิชา (คั่นด้วยเครื่องหมายคอมม่า ,)</label>
+    <input type="text" id="subjects" placeholder="เช่น ภาษาไทย, คณิตศาสตร์, วิทยาศาสตร์">
+
+    <label>เวลาเริ่มเรียน (เช็คสายหลังเวลานี้)</label>
+    <input type="time" id="startTime">
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+      <div><label>พิกัด Latitude</label><input type="text" id="lat"></div>
+      <div><label>พิกัด Longitude</label><input type="text" id="lng"></div>
+    </div>
+
+    <button class="btn btn-gps" onclick="getCurrentLocation()">📍 ดึงพิกัดปัจจุบันจาก GPS</button>
+    <button class="btn btn-save" onclick="saveSettings()">💾 บันทึกการตั้งค่า</button>
+    
+    <a href="report.html" class="back">🔙 กลับหน้าสถิติ</a>
+  </div>
+
+  <script>
+    if(sessionStorage.getItem('isAdmin') !== 'true') window.location.href = 'login.html';
+
+    // โหลดค่าเดิม
+    const savedUrl = localStorage.getItem('gasApiUrl');
+    if(savedUrl) {
+      document.getElementById('apiUrl').value = savedUrl;
+      fetch(`${savedUrl}?action=getConfig`).then(r => r.json()).then(d => {
+        document.getElementById('lat').value = d.lat;
+        document.getElementById('lng').value = d.lng;
+        document.getElementById('startTime').value = d.startTime;
+        document.getElementById('subjects').value = d.subjects.join(', ');
+      }).catch(err => console.log('API ยังไม่ถูกติดตั้งหรือ URL ผิด'));
+    }
+
+    function getCurrentLocation() {
+      navigator.geolocation.getCurrentPosition(p => {
+        document.getElementById('lat').value = p.coords.latitude;
+        document.getElementById('lng').value = p.coords.longitude;
+        alert('ดึงพิกัดเรียบร้อย');
+      }, () => alert('ไม่สามารถดึง GPS ได้ กรุณาเปิดสิทธิ์ใน Browser'));
+    }
+
+    async function saveSettings() {
+      const url = document.getElementById('apiUrl').value.trim();
+      if(!url) return alert('กรุณาใส่ API URL');
+      
+      localStorage.setItem('gasApiUrl', url);
+      const subjects = document.getElementById('subjects').value.split(',').map(s => s.trim()).filter(s => s !== "");
+
+      try {
+        const response = await fetch(url, { 
+          method: 'POST', 
+          body: JSON.stringify({
+            action: 'saveConfig', 
+            lat: document.getElementById('lat').value, 
+            lng: document.getElementById('lng').value,
+            radius: 0.1, 
+            startTime: document.getElementById('startTime').value, 
+            subjects: subjects
+          })
+        });
+        const result = await response.json();
+        if(result.success) {
+          alert('บันทึกการตั้งค่าเรียบร้อย!');
+          window.location.reload();
+        }
+      } catch (e) {
+        alert('ไม่สามารถเชื่อมต่อ API ได้ กรุณาตรวจสอบ URL');
+      }
+    }
+  </script>
+</body>
+</html>

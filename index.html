@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Attendance Main</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Sarabun', sans-serif; background: #0f172a; color: white; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    .container { text-align: center; width: 90%; max-width: 400px; }
+    .btn { padding: 20px; border-radius: 15px; border: none; font-size: 1.1rem; font-weight: bold; cursor: pointer; text-decoration: none; color: white; display: block; margin-bottom: 15px; transition: 0.3s; }
+    .btn-scan { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+    .btn-reg { background: #10b981; }
+    .btn-admin { background: #1e293b; border: 1px solid #334155; }
+    .btn:hover { transform: translateY(-3px); opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏫 ระบบเช็คชื่อ AI</h1>
+    <div style="margin-top: 30px;">
+      <a href="scan.html" class="btn btn-scan">📷 เริ่มสแกนเข้าเรียน</a>
+      <a href="register.html" class="btn btn-reg">👤 ลงทะเบียนนักเรียนใหม่</a>
+      <a href="login.html" class="btn btn-admin">🔐 จัดการระบบ (อาจารย์)</a>
+    </div>
+  </div>
+</body>
+</html>

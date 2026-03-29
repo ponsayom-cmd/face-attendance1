@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>Attendance Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; background: #0f172a; color: white; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+    .header-bar { width: 100%; max-width: 900px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; max-width: 900px; }
+    .card { background: #1e293b; padding: 20px; border-radius: 20px; text-align: center; }
+    .full { grid-column: span 2; }
+    select, input, button { padding: 12px; border-radius: 8px; margin: 5px; border: 1px solid #334155; }
+    button { background: #10b981; color: white; border: none; cursor: pointer; font-weight: bold; }
+    table { width: 100%; margin-top: 15px; border-collapse: collapse; }
+    th, td { padding: 12px; border-bottom: 1px solid #334155; text-align: left; }
+    .btn-config { background: #475569; }
+  </style>
+</head>
+<body>
+  <div class="header-bar">
+    <h1>📊 สถิติการเข้าเรียน</h1>
+    <div>
+      <button onclick="window.location.href='config.html'" class="btn-config">⚙️ ตั้งค่าระบบ</button>
+      <button onclick="sessionStorage.clear(); window.location.href='index.html'" style="background:#ef4444">🚪 ออก</button>
+    </div>
+  </div>
+
+  <div style="margin-bottom: 25px;">
+    <select id="subSelect"></select>
+    <input type="date" id="dateInput">
+    <button onclick="loadData()">🔍 ดึงข้อมูล</button>
+  </div>
+
+  <div class="grid">
+    <div class="card"><h3>สัดส่วนการมาเรียน</h3><canvas id="chart1"></canvas></div>
+    <div class="card"><h3>จำนวนนักเรียน (คน)</h3><canvas id="chart2"></canvas></div>
+    <div class="card full">
+      <h3>📋 รายชื่อนักเรียนวันนี้</h3>
+      <table>
+        <thead><tr><th>ชื่อ</th><th>เวลา</th><th>สถานะ</th></tr></thead>
+        <tbody id="list"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    if(sessionStorage.getItem('isAdmin') !== 'true') window.location.href = 'login.html';
+    const API_URL = localStorage.getItem('gasApiUrl');
+    let c1, c2;
+
+    window.onload = async () => {
+      document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+      const res = await fetch(`${API_URL}?action=getSubjects`);
+      const subs = await res.json();
+      document.getElementById('subSelect').innerHTML = subs.map(s => `<option value="${s}">${s}</option>`).join('');
+      loadData();
+    };
+
+    async function loadData() {
+      const sub = document.getElementById('subSelect').value;
+      const date = document.getElementById('dateInput').value;
+      const res = await fetch(`${API_URL}?action=getAttendanceReport&date=${date}&subject=${sub}`);
+      const d = await res.json();
+      
+      if(c1) c1.destroy(); if(c2) c2.destroy();
+      const stats = [d.stats.present - d.stats.late, d.stats.late, d.stats.absent];
+      const labels = ['ปกติ', 'สาย', 'ขาด'];
+      const colors = ['#10b981', '#fbbf24', '#f87171'];
+
+      c1 = new Chart(document.getElementById('chart1'), { type:'doughnut', data:{ labels:labels, datasets:[{data:stats, backgroundColor:colors}] } });
+      c2 = new Chart(document.getElementById('chart2'), { type:'bar', data:{ labels:labels, datasets:[{data:stats, backgroundColor:colors}] }, options: { plugins: { legend: { display: false } } } });
+      
+      document.getElementById('list').innerHTML = d.attendance.map(i => `<tr><td>${i.name}</td><td>${i.time}</td><td style="color:${i.isLate?'#fbbf24':'#10b981'}">${i.isLate?'มาสาย':'ปกติ'}</td></tr>`).join('');
+    }
+  </script>
+</body>
+</html>
