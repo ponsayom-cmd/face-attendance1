@@ -3,24 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>สแกนหน้า</title>
+  <title>Face Scan Attendance</title>
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.js"></script>
   <style>
-    body { font-family: sans-serif; background: #0f172a; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-    .scan-box { width: 100%; max-width: 500px; background: #1e293b; padding: 20px; border-radius: 20px; text-align: center; }
-    video { width: 100%; border-radius: 15px; transform: scaleX(-1); }
-    select { width: 100%; padding: 15px; border-radius: 10px; background: #0f172a; color: white; border: 1px solid #334155; margin-bottom: 10px; }
-    .btn { width: 100%; padding: 18px; border-radius: 12px; border: none; background: #6366f1; color: white; font-weight: bold; cursor: pointer; }
-    #status { margin: 15px 0; color: #fbbf24; font-weight: bold; }
+    body { font-family: sans-serif; background: #0f172a; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; }
+    .scan-box { width: 100%; max-width: 500px; background: #1e293b; padding: 25px; border-radius: 20px; text-align: center; }
+    video { width: 100%; border-radius: 15px; transform: scaleX(-1); margin-bottom: 15px; background: #000; }
+    select { width: 100%; padding: 15px; border-radius: 12px; background: #0f172a; color: white; border: 1px solid #334155; margin-bottom: 15px; font-size: 1rem; }
+    .btn { width: 100%; padding: 18px; border-radius: 12px; border: none; background: #6366f1; color: white; font-weight: bold; cursor: pointer; font-size: 1.1rem; }
+    #status { margin: 15px 0; color: #fbbf24; font-weight: bold; min-height: 24px; }
   </style>
 </head>
 <body>
   <div class="scan-box">
-    <h2>📸 เช็คชื่อเข้าเรียน</h2>
+    <h2 style="margin-top: 0;">📸 เช็คชื่อเข้าเรียน</h2>
+    <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 15px;">กรุณาเลือกวิชาและมองกล้อง</p>
     <select id="subSelect"><option>กำลังโหลดรายวิชา...</option></select>
     <video id="video" autoplay muted playsinline></video>
-    <div id="status">กำลังโหลดระบบ...</div>
-    <button id="btnStart" class="btn" onclick="start()">เริ่มสแกน</button>
+    <div id="status">กำลังโหลด AI...</div>
+    <button id="btnStart" class="btn" onclick="startScan()">🚀 เริ่มสแกนใบหน้า</button>
   </div>
   <a href="index.html" style="color:#94a3b8; margin-top:20px; text-decoration:none;">กลับหน้าหลัก</a>
 
@@ -29,49 +30,72 @@
     const video = document.getElementById('video');
     const status = document.getElementById('status');
     let knownFaces = [];
+    let isProcessing = false;
 
     window.onload = async () => {
-      await faceapi.nets.ssdMobilenetv1.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
-      await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
-      await faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
-      const res = await fetch(`${API_URL}?action=getSubjects`);
-      const subs = await res.json();
-      document.getElementById('subSelect').innerHTML = subs.map(s => `<option value="${s}">${s}</option>`).join('');
-      status.innerText = "ระบบพร้อมใช้งาน";
+      if(!API_URL) return alert('กรุณาตั้งค่า API URL ก่อนใช้งาน');
+      try {
+        await faceapi.nets.ssdMobilenetv1.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
+        await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
+        await faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model');
+        
+        const res = await fetch(`${API_URL}?action=getSubjects`);
+        const subs = await res.json();
+        document.getElementById('subSelect').innerHTML = subs.map(s => `<option value="${s}">${s}</option>`).join('');
+        status.innerText = "✅ พร้อมใช้งาน";
+      } catch (e) {
+        status.innerText = "❌ โหลดข้อมูลล้มเหลว";
+      }
     };
 
-    async function start() {
-      status.innerText = "⏳ กำลังดึงพิกัดและข้อมูลใบหน้า...";
-      const res = await fetch(`${API_URL}?action=getKnownFaces`);
-      const data = await res.json();
-      knownFaces = data.map(d => new faceapi.LabeledFaceDescriptors(d.name, [new Float32Array(d.descriptor)]));
-      
-      const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
-      video.srcObject = stream;
-      recognize();
+    async function startScan() {
+      status.innerText = "⏳ กำลังเข้าถึงกล้องและดึงข้อมูลใบหน้า...";
+      try {
+        const res = await fetch(`${API_URL}?action=getKnownFaces`);
+        const data = await res.json();
+        if (data.length === 0) return alert('ยังไม่มีข้อมูลนักเรียนในระบบ กรุณาลงทะเบียนก่อน');
+        
+        knownFaces = data.map(d => new faceapi.LabeledFaceDescriptors(d.name, [new Float32Array(d.descriptor)]));
+        
+        const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+        video.srcObject = stream;
+        status.innerText = "🔍 ส่องหน้าเพื่อยืนยันตัวตน...";
+        recognize();
+      } catch (e) {
+        alert("เกิดข้อผิดพลาด: " + e.message);
+      }
     }
 
     async function recognize() {
       const matcher = new faceapi.FaceMatcher(knownFaces, 0.45);
-      const interval = setInterval(async () => {
+      const loop = setInterval(async () => {
+        if(isProcessing) return;
         const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
         if(detection) {
           const match = matcher.findBestMatch(detection.descriptor);
           if(match.label !== 'unknown') {
-            clearInterval(interval);
-            status.innerText = "✅ พบคุณ " + match.label;
+            isProcessing = true;
+            clearInterval(loop);
+            status.innerHTML = `<span style="color:#10b981">✅ พบคุณ ${match.label}</span>`;
             save(match.label);
           }
         }
-      }, 1000);
+      }, 700);
     }
 
     async function save(name) {
-      await fetch(API_URL, { method: 'POST', body: JSON.stringify({
-        action: 'logAttendance', name: name, subject: document.getElementById('subSelect').value, lat: 0, lng: 0
-      })});
-      alert('เช็คชื่อสำเร็จ!');
-      window.location.href = 'index.html';
+      status.innerText = "⏳ กำลังบันทึกข้อมูล...";
+      try {
+        await fetch(API_URL, { method: 'POST', body: JSON.stringify({
+          action: 'logAttendance', 
+          name: name, 
+          subject: document.getElementById('subSelect').value
+        })});
+        alert('เช็คชื่อวิชา ' + document.getElementById('subSelect').value + ' สำเร็จ!');
+        window.location.href = 'index.html';
+      } catch (e) {
+        alert('บันทึกล้มเหลว');
+      }
     }
   </script>
 </body>
