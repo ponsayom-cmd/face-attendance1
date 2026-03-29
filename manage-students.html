@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>จัดการข้อมูลนักเรียน</title>
+  <style>
+    body { font-family: sans-serif; background: #0f172a; color: white; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    .container { width: 100%; max-width: 800px; background: #1e293b; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #0f172a; border-radius: 10px; overflow: hidden; }
+    th, td { padding: 15px; text-align: left; border-bottom: 1px solid #334155; }
+    th { background: #334155; color: #94a3b8; font-size: 0.85rem; text-transform: uppercase; }
+    tr:hover { background: #1e293b; }
+    .btn-del { background: #f87171; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+    .btn-del:hover { background: #ef4444; }
+    .status-badge { background: #10b981; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; }
+    .loader { text-align: center; padding: 40px; color: #94a3b8; }
+    .empty { text-align: center; padding: 40px; color: #64748b; }
+    .back-btn { margin-top: 20px; color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>👥 จัดการข้อมูลนักเรียน</h2>
+    <p style="color: #94a3b8; font-size: 0.9rem;">ตรวจสอบรายชื่อและจัดการลบข้อมูลนักเรียนที่ไม่ได้ใช้งาน</p>
+    
+    <div id="content">
+      <div class="loader">⏳ กำลังโหลดข้อมูล...</div>
+    </div>
+    
+    <div style="text-align: center; margin-top: 30px;">
+      <a href="report.html" class="back-btn">🔙 กลับหน้าสถิติ</a>
+    </div>
+  </div>
+
+  <script>
+    // ตรวจสอบสิทธิ์
+    if (sessionStorage.getItem('isAdmin') !== 'true') window.location.href = 'login.html';
+    
+    const API_URL = localStorage.getItem('gasApiUrl');
+
+    window.onload = loadStudents;
+
+    async function loadStudents() {
+      const content = document.getElementById('content');
+      try {
+        const res = await fetch(`${API_URL}?action=getKnownFaces`);
+        const data = await res.json();
+        
+        if (data.length === 0) {
+          content.innerHTML = '<div class="empty">❌ ไม่พบข้อมูลนักเรียนในระบบ</div>';
+          return;
+        }
+
+        let html = `
+          <table>
+            <thead>
+              <tr>
+                <th>ชื่อ-นามสกุล</th>
+                <th>วันที่ลงทะเบียน</th>
+                <th>สถานะใบหน้า</th>
+                <th>จัดการ</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        data.forEach(student => {
+          html += `
+            <tr>
+              <td style="font-weight: bold;">${student.name}</td>
+              <td style="font-size: 0.85rem; color: #94a3b8;">${student.regDate}</td>
+              <td><span class="status-badge">บันทึกแล้ว</span></td>
+              <td>
+                <button class="btn-del" onclick="deleteStudent('${student.name}')">🗑️ ลบ</button>
+              </td>
+            </tr>
+          `;
+        });
+
+        html += `</tbody></table>`;
+        content.innerHTML = html;
+
+      } catch (e) {
+        content.innerHTML = '<div class="empty" style="color: #f87171;">❌ เกิดข้อผิดพลาดในการโหลดข้อมูล</div>';
+      }
+    }
+
+    async function deleteStudent(name) {
+      if (!confirm(`ยืนยันการลบข้อมูลของ "${name}" ใช่หรือไม่?\n(ข้อมูลจะถูกลบออกจาก Google Sheets ทันที)`)) return;
+      
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'deleteStudent', name: name })
+        });
+        const result = await res.json();
+        
+        if (result.success) {
+          alert('ลบข้อมูลเรียบร้อยแล้ว');
+          loadStudents(); // รีโหลดตาราง
+        } else {
+          alert('ลบไม่สำเร็จ: ' + result.message);
+        }
+      } catch (e) {
+        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      }
+    }
+  </script>
+</body>
+</html>
