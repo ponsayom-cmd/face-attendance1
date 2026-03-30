@@ -4,93 +4,321 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>สแกนใบหน้าเข้าเรียน</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.js"></script>
   <style>
-    body { font-family: sans-serif; background: #0f172a; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-    .scan-container { width: 100%; max-width: 500px; background: #1e293b; padding: 20px; border-radius: 20px; text-align: center; }
-    video { width: 100%; border-radius: 15px; transform: scaleX(-1); border: 3px solid #334155; }
-    #status { margin: 15px 0; font-weight: bold; color: #fbbf24; }
-    select { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 10px; background: #0f172a; color: white; border: 1px solid #334155; }
-    .btn { width: 100%; padding: 15px; border-radius: 12px; border: none; background: #6366f1; color: white; font-weight: bold; cursor: pointer; }
-    .btn:disabled { background: #475569; }
+    :root {
+      --primary: #6366f1;
+      --success: #10b981;
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    body { 
+      font-family: 'Sarabun', sans-serif; 
+      background: var(--bg); 
+      color: var(--text); 
+      margin: 0;
+      padding: 0;
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      min-height: 100vh;
+    }
+
+    /* Navigation Bar */
+    .nav-bar {
+      width: 100%;
+      background: var(--card-bg);
+      padding: 15px 0;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: bold;
+      transition: 0.3s;
+    }
+
+    .nav-link:hover {
+      color: var(--text);
+    }
+
+    .container { 
+      width: 95%; 
+      max-width: 500px; 
+      padding: 30px 10px; 
+    }
+
+    .scan-card { 
+      background: var(--card-bg); 
+      padding: 25px; 
+      border-radius: 20px; 
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      text-align: center;
+    }
+
+    video { 
+      width: 100%; 
+      border-radius: 15px; 
+      transform: scaleX(-1); 
+      border: 3px solid #334155;
+      background: #000;
+      margin-bottom: 15px;
+    }
+
+    #status { 
+      margin: 15px 0; 
+      font-weight: bold; 
+      color: #fbbf24; 
+      min-height: 1.5em;
+    }
+
+    .select-group {
+      text-align: left;
+      margin-bottom: 20px;
+    }
+
+    label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+      display: block;
+    }
+
+    select { 
+      width: 100%; 
+      padding: 12px; 
+      border-radius: 10px; 
+      background: var(--bg); 
+      color: white; 
+      border: 1px solid #334155; 
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .btn { 
+      width: 100%; 
+      padding: 15px; 
+      border-radius: 12px; 
+      border: none; 
+      background: var(--primary); 
+      color: white; 
+      font-weight: bold; 
+      font-size: 1rem;
+      cursor: pointer; 
+      transition: 0.3s;
+    }
+
+    .btn:disabled { background: #475569; cursor: not-allowed; }
+    .btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-2px); }
+
+    .result-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15, 23, 42, 0.95);
+      z-index: 1000;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .success-icon {
+      font-size: 5rem;
+      color: var(--success);
+      margin-bottom: 20px;
+    }
+
+    .btn-home {
+      margin-top: 20px;
+      padding: 12px 30px;
+      background: var(--primary);
+      color: white;
+      text-decoration: none;
+      border-radius: 10px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
-  <div class="scan-container">
-    <h2>📸 เช็คชื่อเข้าเรียน</h2>
-    <select id="subSelect"><option value="">⏳ กำลังโหลดวิชา...</option></select>
-    <video id="video" autoplay muted playsinline></video>
-    <div id="status">⏳ กำลังเตรียมระบบ AI...</div>
-    <button id="btnStart" class="btn" onclick="startCamera()">เริ่มสแกน</button>
+
+  <!-- แถบเมนูนำทาง -->
+  <nav class="nav-bar">
+    <a href="index.html" class="nav-link">🏠 หน้าหลัก</a>
+    <a href="report.html" class="nav-link">📊 รายงาน</a>
+    <a href="manage-students.html" class="nav-link">👥 จัดการนักเรียน</a>
+    <a href="config.html" class="nav-link">⚙️ ตั้งค่า</a>
+  </nav>
+
+  <div class="container">
+    <div class="scan-card">
+      <h2>📸 สแกนใบหน้าเข้าเรียน</h2>
+      
+      <div class="select-group">
+        <label>📚 เลือกวิชาที่เข้าเรียน</label>
+        <select id="subSelect">
+          <option value="">⏳ กำลังโหลดรายวิชา...</option>
+        </select>
+      </div>
+
+      <video id="video" autoplay muted playsinline></video>
+      <div id="status">⏳ กำลังเตรียมระบบ AI...</div>
+      
+      <button id="btnStart" class="btn" onclick="startCamera()">🚀 เริ่มต้นสแกน</button>
+      
+      <p style="margin-top: 20px; font-size: 0.85rem; color: var(--text-muted);">
+        กรุณาวางใบหน้าให้ตรงกับกล้องและอยู่ในที่ที่มีแสงสว่างเพียงพอ
+      </p>
+    </div>
+  </div>
+
+  <!-- หน้าจอแสดงผลเมื่อสำเร็จ -->
+  <div id="resultOverlay" class="result-overlay">
+    <div class="success-icon">✅</div>
+    <h1 id="resName">เช็คชื่อสำเร็จ!</h1>
+    <p id="resDetail" style="color: var(--text-muted); margin-bottom: 30px;"></p>
+    <a href="index.html" class="btn-home">🏠 กลับหน้าหลัก</a>
   </div>
 
   <script>
     const API_URL = localStorage.getItem('gasApiUrl');
     const video = document.getElementById('video');
     const status = document.getElementById('status');
+    const subSelect = document.getElementById('subSelect');
     let faceMatcher = null;
     let isProcessing = false;
 
     window.onload = async () => {
+      if (!API_URL) {
+        alert('กรุณาตั้งค่า API URL ก่อนใช้งาน');
+        window.location.href = 'config.html';
+        return;
+      }
+
+      // โหลด Model AI
       const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
-      await Promise.all([
-        faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-      ]);
-      
-      const res = await fetch(`${API_URL}?action=getSubjects`);
-      const subs = await res.json();
-      document.getElementById('subSelect').innerHTML = subs.map(s => `<option value="${s}">${s}</option>`).join('');
-      status.innerText = "✅ AI พร้อมทำงาน";
+      try {
+        await Promise.all([
+          faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ]);
+        
+        // โหลดรายวิชา
+        const res = await fetch(`${API_URL}?action=getSubjects`);
+        const subs = await res.json();
+        if (subs.length > 0) {
+          subSelect.innerHTML = subs.map(s => `<option value="${s}">${s}</option>`).join('');
+        } else {
+          subSelect.innerHTML = '<option value="">ไม่พบรายวิชา</option>';
+        }
+        
+        status.innerText = "✅ ระบบ AI พร้อมทำงาน";
+      } catch (e) {
+        status.innerText = "❌ โหลดระบบผิดพลาด";
+        console.error(e);
+      }
     };
 
     async function startCamera() {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
-      video.srcObject = stream;
-      status.innerText = "⏳ กำลังโหลดฐานข้อมูลใบหน้า...";
-      
-      const res = await fetch(`${API_URL}?action=getKnownFaces`);
-      const data = await res.json();
-      
-      if (data.length === 0) return alert('ยังไม่มีข้อมูลนักเรียน');
+      const subject = subSelect.value;
+      if (!subject) return alert('กรุณาเลือกรายวิชาก่อนสแกน');
 
-      const labeledDescriptors = data.map(d => {
-        return new faceapi.LabeledFaceDescriptors(d.name, [new Float32Array(d.descriptor)]);
-      });
+      document.getElementById('btnStart').disabled = true;
+      
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+        video.srcObject = stream;
+        status.innerText = "⏳ กำลังโหลดฐานข้อมูลใบหน้า...";
+        
+        const res = await fetch(`${API_URL}?action=getKnownFaces`);
+        const data = await res.json();
+        
+        if (data.length === 0) {
+          status.innerText = "❌ ไม่พบข้อมูลนักเรียนในระบบ";
+          return;
+        }
 
-      // ตั้ง Threshold ที่ 0.4 (ยิ่งน้อยยิ่งเข้มงวด ป้องกันการสแกนผิดคน)
-      faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.4);
-      status.innerText = "🔍 กำลังค้นหาใบหน้าของคุณ...";
-      detect();
+        const labeledDescriptors = data.map(d => {
+          return new faceapi.LabeledFaceDescriptors(d.name, [new Float32Array(d.descriptor)]);
+        });
+
+        // Threshold 0.4 เพื่อความแม่นยำสูงสุด
+        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.4);
+        status.innerText = "🔍 กำลังสแกนใบหน้า... กรุณานิ่งไว้";
+        detect();
+      } catch (err) {
+        alert('ไม่สามารถเปิดกล้องได้: ' + err.message);
+        document.getElementById('btnStart').disabled = false;
+      }
     }
 
     async function detect() {
       if (isProcessing) return;
+      
       const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
       
       if (detection) {
         const match = faceMatcher.findBestMatch(detection.descriptor);
         if (match.label !== 'unknown') {
           isProcessing = true;
-          status.innerText = `🎉 พบข้อมูล: ${match.label}`;
+          status.innerText = `🎉 พบคุณ: ${match.label}`;
           saveAttendance(match.label);
           return;
         } else {
-          status.innerText = "❌ ไม่พบใบหน้าในระบบ";
+          status.innerText = "❌ ไม่พบใบหน้าในระบบ (ลองขยับหน้าอีกครั้ง)";
         }
       }
-      setTimeout(detect, 500);
+      
+      if (!isProcessing) setTimeout(detect, 300);
     }
 
     async function saveAttendance(name) {
-      const sub = document.getElementById('subSelect').value;
-      await fetch(API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'logAttendance', name: name, subject: sub })
-      });
-      alert(`เช็คชื่อสำเร็จ: ${name}\nวิชา: ${sub}`);
-      window.location.reload();
+      const subject = subSelect.value;
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'logAttendance', name: name, subject: subject })
+        });
+        
+        const res = await response.json();
+        if (res.success) {
+          showSuccess(name, subject);
+        } else {
+          alert('บันทึกผิดพลาด: ' + res.message);
+          isProcessing = false;
+          detect();
+        }
+      } catch (e) {
+        alert('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้');
+        isProcessing = false;
+        detect();
+      }
+    }
+
+    function showSuccess(name, subject) {
+      const overlay = document.getElementById('resultOverlay');
+      document.getElementById('resName').innerText = `เช็คชื่อสำเร็จ: ${name}`;
+      document.getElementById('resDetail').innerText = `วิชา: ${subject}\nบันทึกเวลาเรียบร้อยแล้ว`;
+      overlay.style.display = 'flex';
+      
+      // ปิดกล้องเพื่อประหยัดทรัพยากร
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+      }
     }
   </script>
 </body>
